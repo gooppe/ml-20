@@ -116,6 +116,8 @@ def train(args):
     scores = []
     recent_scores = deque(maxlen=100)
 
+    solved = False
+
     for episode in range(1, args.episodes + 1):
         state = env.reset()
         score = 0
@@ -145,17 +147,18 @@ def train(args):
 
         if episode % 100 == 0:
             avg_score = np.mean(recent_scores)
-            if avg_score > 200:
+            if avg_score > 200 and not solved:
                 print(
                     f"Task solved with {episode} episodes."
                     f"Average score: {avg_score}"
                 )
-                torch.save(q.state_dict(), args.dump)
-                plot_score(scores, args.plot)
-                break
+                solved = True
             else:
                 print(f"Episode {episode} average score: {avg_score}")
 
+            torch.save(q.state_dict(), str(episode) + args.dump)
+        
+    plot_score(scores, args.plot)
     env.close()
 
 

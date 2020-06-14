@@ -42,6 +42,13 @@ def test(args):
     avg_score = np.mean(scores)
     print(f"Average score: {avg_score}")
 
+    for n in [200, 100, 0]:
+        stat = sum(True for s in scores if s > n)
+        print(f"{stat} episodes with score > {n}")
+
+    less_0 = sum(True for s in scores if s < 0)
+    print(f"{less_0} episodes with score < 0")
+
     env.close()
 
 
