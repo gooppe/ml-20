@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from dm_control import suite, viewer
 
-from main import Actor
+from ddpg import Actor
 
 
 def get_policy(dump: str, action_spec):
