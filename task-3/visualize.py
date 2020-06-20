@@ -27,9 +27,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--dump", type=str, default="dumps/model.pth")
+    parser.add_argument("--env", nargs=2, type=str, default=["cartpole", "swingup"])
     args = parser.parse_args()
 
-    env = suite.load(domain_name="swimmer", task_name="swimmer6")
+    env = suite.load(domain_name=args.env[0], task_name=args.env[1])
     action_spec = env.action_spec()
 
     policy = get_policy(args.dump, action_spec)

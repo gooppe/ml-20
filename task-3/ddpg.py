@@ -61,12 +61,11 @@ class Actor(nn.Module):
 
         self.actor = nn.Sequential(
             nn.Linear(n_states, hidden_size),
-            nn.LayerNorm(hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
-            nn.LayerNorm(hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, n_actions),
+            nn.Tanh(),
         )
 
         self.register_buffer(
@@ -148,7 +147,9 @@ def soft_update(source: nn.Module, target: nn.Module, tau: float):
 
 
 def main(args):
-    env = suite.load(domain_name="swimmer", task_name="swimmer6")
+    env = suite.load(
+        domain_name=args.env[0], task_name=args.env[1], task_kwargs={"time_limit": 10}
+    )
     n_actions = env.action_spec().shape[0]
     n_states = sum(len(o) for o in env.reset().observation.values())
     print(f"Actions: {n_actions}; States: {n_states}")
@@ -173,21 +174,20 @@ def main(args):
         rewards = rewards.view(-1, 1)
 
         Q = critic(states, actions)
-        with torch.no_grad():
-            expected_actions = target_actor(next_states)
-            expected_Q = target_critic(next_states, expected_actions)
+        expected_actions = target_actor(next_states).detach()
+        expected_Q = target_critic(next_states, expected_actions)
         target_Q = rewards + args.gamma * expected_Q
 
         critic_loss = torch.nn.functional.mse_loss(Q, target_Q)
         actor_loss = -torch.mean(critic(states, actor(states)))
 
-        critic_optim.zero_grad()
-        critic_loss.backward()
-        critic_optim.step()
-
         actor_optim.zero_grad()
         actor_loss.backward()
         actor_optim.step()
+
+        critic_optim.zero_grad()
+        critic_loss.backward()
+        critic_optim.step()
 
         soft_update(actor, target_actor, args.tau)
         soft_update(critic, target_critic, args.tau)
@@ -223,13 +223,16 @@ def main(args):
 
             if len(replay) >= args.batch_size:
                 actor_loss, critic_loss = step()
+                tb_writer.add_scalars(
+                    "loss", {"critic": critic_loss, "actor": actor_loss}, t
+                )
 
             if time_step.last():
                 history.append(ep_reward)
                 pbar.write(
                     f"Ep {episode}; Reward: {ep_reward}; Avg: {np.mean(history[-10:])}"
                 )
-                tb_writer.add_scalar("reward", ep_reward)
+                tb_writer.add_scalar("reward", ep_reward, episode)
                 break
 
         if episode % args.save_every == 0:
@@ -242,6 +245,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--dump", type=str, default="dumps/model")
     parser.add_argument("--log", type=str, default="logs")
+    parser.add_argument("--env", nargs=2, type=str, default=["cartpole", "swingup"])
     parser.add_argument("--hidden-size", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--buffer", type=int, default=int(1e6))
